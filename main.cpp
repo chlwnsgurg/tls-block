@@ -267,17 +267,15 @@ int main(int argc, char* argv[]) {
 			printf("Error: pcap_next_ex return %d(%s)\n", res, pcap_geterr(pcap));
 			break;
 		}
-	
 		struct libnet_ethernet_hdr* eth_hdr = (struct libnet_ethernet_hdr*)packet;
 		if(ntohs(eth_hdr->ether_type) != ETHERTYPE_IP) continue;
 		
 		struct libnet_ipv4_hdr* ipv4_hdr = (struct libnet_ipv4_hdr*)(eth_hdr+1);
 		if(ipv4_hdr->ip_p != IPTYPE_TCP) continue;
 		uint16_t ipv4_hdr_len = 4*(ipv4_hdr->ip_hl);
+
 		
 		struct libnet_tcp_hdr* tcp_hdr = (struct libnet_tcp_hdr*)((char*)ipv4_hdr + ipv4_hdr_len);
-		if(tcp_hdr->th_dport != 443U) continue; // Tcp Header Https Port Number = 443
-		
 		uint16_t tcp_hdr_len = 4*tcp_hdr->th_off;
 		uint32_t payload_len = ntohs(ipv4_hdr->ip_len) - ipv4_hdr_len - tcp_hdr_len;
 		uint8_t* tcp_data = (u_int8_t*)tcp_hdr + tcp_hdr_len;
@@ -287,16 +285,16 @@ int main(int argc, char* argv[]) {
         };
 
         if (tls_buffer.find(key) == tls_buffer.end()) {
+
             // If new TLS connection
             if (payload_len < sizeof(TlsRecordHdr) + sizeof(TlsHandshakeHdr)) continue;
-
             const TlsRecordHdr *tls_record = reinterpret_cast<const TlsRecordHdr*>(tcp_data);
             if (!tls_record->is_tls() || tls_record->type() != TlsRecordHdr::Handshake) continue;
-
             const TlsHandshakeHdr *tls_handshake = reinterpret_cast<const TlsHandshakeHdr*>(tcp_data + sizeof(TlsRecordHdr));
             if (tls_handshake->type() != TlsHandshakeHdr::ClientHello) continue;
 
             if (payload_len == tls_record->len() + sizeof(TlsRecordHdr)){
+
 				if (extract_sni(tcp_data, payload_len) == std::string(param.pattern_)) {
 					printf("[!] Pattern \"%s\" detected\n", param.pattern_);
 					struct LEN_ARGS len_args;
@@ -310,22 +308,17 @@ int main(int argc, char* argv[]) {
             else{
                 printf("[-] Reassembling segmented TLS record\n");
                 ParsedData& buf = tls_buffer[key];
-
-                buf.data.append(reinterpret_cast<const char*>(tcp_data), payload_len);
+                buf.data.append((char*)tcp_data, payload_len);
                 buf.total_len = tls_record->len() + sizeof(TlsRecordHdr);
                 buf.current_len = payload_len;
             }
         }
         else {
-            // Already in tls_buffer
             ParsedData& buf = tls_buffer[key];
-
-            buf.data.append(reinterpret_cast<const char*>(tcp_data), payload_len);
+            buf.data.append((char*)tcp_data, payload_len);
             buf.current_len += payload_len;
-            if (buf.current_len < buf.total_len) continue;
-
             printf("[-] Successfully reassembled segmented TLS record\n");
-            if (extract_sni(reinterpret_cast<const uint8_t*>(buf.data.data()), buf.current_len) == std::string(param.pattern_)) {
+            if (extract_sni((uint8_t*)buf.data.data(), buf.current_len) == std::string(param.pattern_)) {
                 printf("[!] Pattern \"%s\" detected\n", param.pattern_);
 				struct LEN_ARGS len_args;
 				len_args.ip_len = ipv4_hdr_len;
