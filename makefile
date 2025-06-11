@@ -1,19 +1,25 @@
 LDLIBS=-lpcap
 
-all: arp-spoof
+all: tls-block
 
-main.o: mac.h ip.h ethhdr.h arphdr.h util.h main.cpp
+main.o: libnet.h mac.h ip.h ethhdr.h main.cpp
 
-arphdr.o: mac.h ip.h arphdr.h arphdr.cpp
+block.o: libnet.h block.h block.cpp
 
 ethhdr.o: mac.h ethhdr.h ethhdr.cpp
+
+iphdr.o: ip.h iphdr.h iphdr.cpp
+
+tcphdr.o: tcphdr.h tcphdr.cpp
+
+tlshdr.o: tlshdr.h tlshdr.cpp
 
 ip.o: ip.h ip.cpp
 
 mac.o : mac.h mac.cpp
 
-arp-spoof: main.o arphdr.o ethhdr.o ip.o mac.o
+tls-block: main.o block.o ethhdr.o iphdr.o tcphdr.o tlshdr.o ip.o mac.o
 	$(LINK.cc) $^ $(LOADLIBES) $(LDLIBS) -o $@
 
 clean:
-	rm -f arp-spoof *.o
+	rm -f tls-block *.o

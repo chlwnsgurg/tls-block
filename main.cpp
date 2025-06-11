@@ -232,8 +232,6 @@ bool parse(Param* param, int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
 	if (!parse(&param, argc, argv)) return -1;
-
-	uint8_t amac[6]; get_mac(argv[1], amac);
 	
 	// RAW SOCKET OPEN
 	int sockfd;
@@ -283,7 +281,6 @@ int main(int argc, char* argv[]) {
 		uint16_t tcp_hdr_len = 4*tcp_hdr->th_off;
 		uint32_t payload_len = ntohs(ipv4_hdr->ip_len) - ipv4_hdr_len - tcp_hdr_len;
 		uint8_t* tcp_data = (u_int8_t*)tcp_hdr + tcp_hdr_len;
-		char* tcp_data = (char*)tcp_hdr + tcp_hdr_len;
 		
 		Key key = {
 			ipv4_hdr->ip_src.s_addr, tcp_hdr->th_sport, ipv4_hdr->ip_dst.s_addr, tcp_hdr->th_dport
