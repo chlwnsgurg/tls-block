@@ -103,7 +103,7 @@ static uint16_t compute_checksum(uint16_t *addr, uint32_t count) {
 
 void compute_ip_checksum(struct IpHdr *ip_hdr){
     ip_hdr->checksum_ = 0;
-    ip_hdr->checksum_ = compute_checksum(reinterpret_cast<uint16_t*>(ip_hdr), ip_hdr->ihl() << 2);
+    ip_hdr->checksum_ = compute_checksum((uint16_t*)ip_hdr, ip_hdr->ihl() << 2);
 }
 
 void compute_tcp_checksum(IpHdr *ip_hdr, TcpHdr *tcp_hdr, uint8_t *data, size_t data_len){
@@ -120,7 +120,7 @@ void compute_tcp_checksum(IpHdr *ip_hdr, TcpHdr *tcp_hdr, uint8_t *data, size_t 
 
     // TCP header
     tcp_hdr->checksum_ = 0; // Initialize checksum to 0
-    const uint16_t *tcp_ptr = reinterpret_cast<uint16_t*>(tcp_hdr);
+    const uint16_t *tcp_ptr = (uint16_t*)(tcp_hdr);
     size_t tcp_words = sizeof(TcpHdr) / 2;
 
     for (size_t i = 0; i < tcp_words; i++) {
@@ -128,7 +128,7 @@ void compute_tcp_checksum(IpHdr *ip_hdr, TcpHdr *tcp_hdr, uint8_t *data, size_t 
     }
 
     // TCP payload (data)
-    const uint16_t *data_ptr = reinterpret_cast<const uint16_t*>(data);
+    const uint16_t *data_ptr = (uint16_t*)data;
     size_t data_words = data_len / 2;
 
     for (size_t i = 0; i < data_words; i++) {
@@ -137,7 +137,7 @@ void compute_tcp_checksum(IpHdr *ip_hdr, TcpHdr *tcp_hdr, uint8_t *data, size_t 
 
     // Handle odd-length data (pad last byte)
     if (data_len % 2) {
-        sum += *(reinterpret_cast<const uint8_t*>(data) + data_len - 1);
+        sum += *((uint8_t*)(data) + data_len - 1);
     }
 
     // Fold 32-bit sum to 16 bits: add carrier to result
@@ -146,7 +146,7 @@ void compute_tcp_checksum(IpHdr *ip_hdr, TcpHdr *tcp_hdr, uint8_t *data, size_t 
     }
     sum = ~sum;
 
-    tcp_hdr->checksum_ = static_cast<uint16_t>(sum);
+    tcp_hdr->checksum_ = (uint16_t)sum;
 }
 
 std::string extract_sni(const uint8_t *tls_data, size_t tls_data_len) {
@@ -164,7 +164,7 @@ std::string extract_sni(const uint8_t *tls_data, size_t tls_data_len) {
     offset += session_id_len;
 
     if (offset + 2 > tls_data_len) return ""; // Cipher suites length
-    uint16_t cipher_suites_len = ntohs(*reinterpret_cast<const uint16_t*>(tls_data + offset));
+    uint16_t cipher_suites_len = ntohs(*(uint16_t*)(tls_data + offset));
     offset += 2 + cipher_suites_len;
 
     if (offset + 1 > tls_data_len) return ""; // Compression methods length
@@ -172,14 +172,14 @@ std::string extract_sni(const uint8_t *tls_data, size_t tls_data_len) {
     offset += compression_len;
 
     if (offset + 2 > tls_data_len) return ""; // Extensions length
-    uint16_t extensions_len = ntohs(*reinterpret_cast<const uint16_t*>(tls_data + offset));
+    uint16_t extensions_len = ntohs(*(uint16_t*)(tls_data + offset));
     offset += 2;
 
     // Parsing Extensions
     size_t extensions_end = offset + extensions_len;
     while (offset + 4 <= extensions_end && offset + 4 <= tls_data_len) {
-        uint16_t ext_type = ntohs(*reinterpret_cast<const uint16_t*>(tls_data + offset));
-        uint16_t ext_len = ntohs(*reinterpret_cast<const uint16_t*>(tls_data + offset + 2));
+        uint16_t ext_type = ntohs(*(uint16_t*)(tls_data + offset));
+        uint16_t ext_len = ntohs(*(uint16_t*)(tls_data + offset + 2));
         offset += 4;
 
         if (ext_type == TLS_EXTENSION_SERVER_NAME && offset + ext_len <= tls_data_len) {
@@ -187,18 +187,18 @@ std::string extract_sni(const uint8_t *tls_data, size_t tls_data_len) {
             size_t sni_offset = offset;
             if (sni_offset + 2 > tls_data_len) break;
 
-            uint16_t server_name_list_len = ntohs(*reinterpret_cast<const uint16_t*>(tls_data + sni_offset));
+            uint16_t server_name_list_len = ntohs(*(uint16_t*)(tls_data + sni_offset));
             sni_offset += 2;
 
             if (sni_offset + server_name_list_len > tls_data_len) break;
 
             while (sni_offset + 3 <= offset + ext_len && sni_offset + 3 <= tls_data_len) {
                 uint8_t name_type = tls_data[sni_offset++];
-                uint16_t name_len = ntohs(*reinterpret_cast<const uint16_t*>(tls_data + sni_offset));
+                uint16_t name_len = ntohs(*(uint16_t*)(tls_data + sni_offset));
                 sni_offset += 2;
 
                 if (name_type == TLS_SERVER_NAME_TYPE_HOSTNAME && sni_offset + name_len <= tls_data_len) {
-                    return std::string(reinterpret_cast<const char*>(tls_data + sni_offset), name_len);
+                    return std::string((char*)(tls_data + sni_offset), name_len);
                 }
                 sni_offset += name_len;
             }
@@ -288,9 +288,9 @@ int main(int argc, char* argv[]) {
 
             // If new TLS connection
             if (payload_len < sizeof(TlsRecordHdr) + sizeof(TlsHandshakeHdr)) continue;
-            const TlsRecordHdr *tls_record = reinterpret_cast<const TlsRecordHdr*>(tcp_data);
+            const TlsRecordHdr *tls_record = (TlsRecordHdr*)tcp_data;
             if (!tls_record->is_tls() || tls_record->type() != TlsRecordHdr::Handshake) continue;
-            const TlsHandshakeHdr *tls_handshake = reinterpret_cast<const TlsHandshakeHdr*>(tcp_data + sizeof(TlsRecordHdr));
+            const TlsHandshakeHdr *tls_handshake = (TlsHandshakeHdr*)(tcp_data + sizeof(TlsRecordHdr));
             if (tls_handshake->type() != TlsHandshakeHdr::ClientHello) continue;
 
             if (payload_len == tls_record->len() + sizeof(TlsRecordHdr)){
